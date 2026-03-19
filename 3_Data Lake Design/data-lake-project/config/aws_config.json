@@ -1,0 +1,8 @@
+{
+  "bucket_name": "natarajan-de-2026-bucket-1",
+  "aws_region": "ap-south-2",
+  "s3_prefix": "datalake",
+  "athena_database": "lakehouse_demo",
+  "athena_table": "orders",
+  "athena_output_s3": "s3://natarajan-de-2026-bucket-1/athena-results/"
+}

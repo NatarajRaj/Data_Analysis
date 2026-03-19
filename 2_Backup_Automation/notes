@@ -1,0 +1,249 @@
+# ⚙️ Automation, AWS Setup & Retention Configuration
+
+## 🧠 Overall Workflow
+
+The solution follows a fully automated daily pipeline:
+
+```text
+10:00 PM → generate_retail_data.py (Data Ingestion)
+02:00 AM → backup.sh (pg_dump → gzip → S3 Upload)
+```
+
+### Flow:
+
+```text
+Local Machine
+   ↓
+10 PM → Python Script → PostgreSQL (Data Generation)
+   ↓
+2 AM → Bash Script → Backup + Compression + Upload
+   ↓
+AWS S3 → Lifecycle Policy → Automatic Retention
+```
+
+---
+
+# 🟢 1️⃣ Automation Setup (Windows Task Scheduler)
+
+## A. Data Generation Job (10:00 PM)
+
+Steps:
+
+1. Open **Task Scheduler**
+2. Click **Create Basic Task**
+3. Name: `Data Generation Job`
+
+### Trigger:
+
+* Daily
+* Time: **10:00 PM**
+
+### Action:
+
+* Program:
+
+```text
+py
+```
+
+* Arguments:
+
+```text
+D:\Data_Analysis\generate_retail_data.py
+```
+
+---
+
+## B. Backup Job (2:00 AM)
+
+Steps:
+
+1. Create another task
+2. Name: `Backup Job`
+
+### Trigger:
+
+* Daily
+* Time: **2:00 AM**
+
+### Action:
+
+* Program:
+
+```text
+C:\Program Files\Git\bin\bash.exe
+```
+
+* Arguments:
+
+```text
+D:/Data_Analysis/backup.sh
+```
+
+### Important Notes:
+
+* Use **forward slash `/`** in paths
+* Ensure Git Bash is installed
+* Ensure scripts are tested manually before scheduling
+
+---
+
+# 🟢 2️⃣ Manual Execution (Testing)
+
+Before automation, scripts are tested via VS Code terminal:
+
+### Run data generation:
+
+```bash
+py generate_retail_data.py
+```
+
+### Run backup:
+
+```bash
+& "C:\Program Files\Git\bin\bash.exe" .\backup.sh
+# ./backup.sh
+```
+
+---
+
+# 🟢 3️⃣ AWS Configuration in VS Code
+
+AWS CLI is configured once and reused by scripts.
+
+### Step 1: Configure AWS
+
+```bash
+aws configure
+```
+
+Enter:
+
+* AWS Access Key
+* AWS Secret Key
+* Region: `ap-south-2`
+
+---
+
+### Step 2: Verify
+
+```bash
+aws s3 ls
+```
+
+If the bucket is listed, configuration is successful.
+
+---
+
+### How it works:
+
+```text
+backup.sh → aws s3 cp → AWS CLI → credentials → S3 upload
+```
+
+No need to pass credentials inside scripts.
+
+---
+
+# 🟢 4️⃣ S3 Backup Structure
+
+Backups are stored in a date-partitioned format:
+
+```text
+s3://natarajan-de-2026-bucket-1/backups/postgres/YYYY/MM/DD/backup_timestamp.sql.gz
+```
+
+Example:
+
+```text
+s3://natarajan-de-2026-bucket-1/backups/postgres/2026/03/18/backup_175916.sql.gz
+```
+
+---
+
+# 🟢 5️⃣ Retention Policy (S3 Lifecycle)
+
+Retention is implemented using AWS S3 lifecycle rules.
+
+## Steps to Configure:
+
+1. Go to **AWS S3 Console**
+2. Open bucket: `natarajan-de-2026-bucket-1`
+3. Go to **Management** tab
+4. Click **Lifecycle Rules**
+5. Click **Create lifecycle rule**
+
+---
+
+### Configuration:
+
+* Rule Name:
+
+```text
+backup-retention-30-days
+```
+
+* Scope:
+
+```text
+Prefix: backups/postgres/
+```
+
+* Action:
+
+```text
+Expire current versions of objects
+```
+
+* Expiration:
+
+```text
+30 days
+```
+
+---
+
+## Result:
+
+```text
+Day 1 → Backup stored  
+Day 31 → Backup automatically deleted
+```
+
+---
+
+# 🟢 6️⃣ Design Decisions
+
+| Component   | Approach                |
+| ----------- | ----------------------- |
+| Automation  | Windows Task Scheduler  |
+| Backup      | Full (pg_dump)          |
+| Compression | gzip                    |
+| Storage     | AWS S3                  |
+| Retention   | S3 Lifecycle            |
+| Credentials | AWS CLI (no hardcoding) |
+
+---
+
+# 🟢 7️⃣ Cost Optimization
+
+* Only S3 is used (within free tier limits)
+* No compute services (EC2, Glue, etc.)
+* Data size controlled (<100 MB)
+* Compression reduces storage usage
+* Lifecycle policy prevents long-term storage cost
+
+---
+
+# 🟢 8️⃣ Security Best Practices
+
+* No credentials in scripts
+* AWS CLI handles authentication securely
+* Environment variables used for DB config
+* Sensitive data excluded from repository
+
+---
+
+# 🟢 9️⃣ Conclusion
+
+This setup ensures a **fully automated, cost-efficient, and production-ready backup pipeline**, with minimal operational overhead and adherence to best practices in data engineering.
